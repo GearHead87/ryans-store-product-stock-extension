@@ -77,11 +77,12 @@ export function describeDelivery(deliveryTime: string) {
   return isInStockNow(deliveryTime) ? "In stock" : `In ${deliveryTime}`
 }
 
+export const SKU_SELECTOR = ".found-text"
 const SKU_PATTERN = /^\d+(\.\d+)+$/
 
 // Category cards have the SKU twice (grid and list view); search cards have it once.
 export function readCardSku(card: Element): string | null {
-  for (const element of card.querySelectorAll(".found-text")) {
+  for (const element of card.querySelectorAll(SKU_SELECTOR)) {
     const text = element.textContent?.trim() ?? ""
     if (SKU_PATTERN.test(text)) {
       return text

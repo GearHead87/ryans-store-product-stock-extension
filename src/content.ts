@@ -3,7 +3,15 @@ import type { PlasmoCSConfig } from "plasmo"
 
 import { requestAvailability } from "./lib/availability-client"
 import type { OpenOptionsMessage } from "./lib/messages"
-import { CARD_SELECTOR, describeDelivery, isInStockNow, readCardSku, type Availability, type Branch } from "./lib/ryans"
+import {
+  CARD_SELECTOR,
+  describeDelivery,
+  isInStockNow,
+  readCardSku,
+  SKU_SELECTOR,
+  type Availability,
+  type Branch
+} from "./lib/ryans"
 import { loadSettings, SETTINGS_KEY, type Settings } from "./lib/settings"
 
 export const config: PlasmoCSConfig = {
@@ -242,17 +250,25 @@ function scan() {
 }
 
 // Rescan shortly after the page adds or removes elements (ignoring our own blocks being inserted),
-// or replaces text inside a card, which could be its SKU.
+// or changes the text of a card's SKU. Other text changes, like timers, are ignored.
 let rescanTimer: ReturnType<typeof setTimeout> | undefined
+
+function isCardSku(element: Element | null) {
+  return !!element?.closest(SKU_SELECTOR) && !!element.closest(CARD_SELECTOR)
+}
 
 function isPageChange(mutations: MutationRecord[]) {
   for (const mutation of mutations) {
+    if (mutation.type === "characterData") {
+      if (isCardSku(mutation.target.parentElement)) return true
+      continue
+    }
     for (const nodes of [mutation.addedNodes, mutation.removedNodes]) {
       for (const node of nodes) {
         if (node.nodeType === Node.ELEMENT_NODE && node.nodeName !== HOST_TAG.toUpperCase()) {
           return true
         }
-        if (node.nodeType === Node.TEXT_NODE && (mutation.target as Element).closest?.(CARD_SELECTOR)) {
+        if (node.nodeType === Node.TEXT_NODE && isCardSku(mutation.target as Element)) {
           return true
         }
       }
@@ -293,7 +309,7 @@ loadSettings()
   .then((loaded) => {
     settings = loaded
     scan()
-    pageObserver.observe(document.body, { childList: true, subtree: true })
+    pageObserver.observe(document.body, { childList: true, characterData: true, subtree: true })
   })
 
 chrome.storage.onChanged.addListener((changes, area) => {
