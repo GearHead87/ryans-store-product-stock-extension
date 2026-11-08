@@ -1,0 +1,24 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #111827;
+  color: #14213d;
+  font-family: ui-rounded, "Avenir Next", "Segoe UI", sans-serif;
+}
+
+.options-shell {
+  display: grid;
+  min-height: 100vh;
+  padding: 48px 20px;
+  place-items: center;
+}
+
+.settings-panel {
+  width: min(100%, 640px);
+  padding: 28px;
+  background: #fffaf0;
+  border-radius: 16px;
+}

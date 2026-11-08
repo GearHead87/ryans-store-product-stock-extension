@@ -1,0 +1,136 @@
+name: Release extension
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+      - "*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish GitHub release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Read release version
+        id: version
+        shell: bash
+        run: |
+          TAG_NAME="${GITHUB_REF_NAME}"
+          VERSION="${TAG_NAME#v}"
+
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Tag must be a semantic version like v1.2.3 or 1.2.3." >&2
+            exit 1
+          fi
+
+          echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Set extension version from tag
+        run: npm pkg set version="${{ steps.version.outputs.version }}"
+
+      - name: Generate changelog and release notes
+        id: changelog
+        shell: bash
+        run: |
+          TAG_NAME="${{ steps.version.outputs.tag_name }}"
+          VERSION="${{ steps.version.outputs.version }}"
+          RELEASE_DATE="$(date -u +%Y-%m-%d)"
+          CURRENT_SHA="$(git rev-list -n 1 "$TAG_NAME")"
+          PREVIOUS_TAG="$(git describe --tags --abbrev=0 "${CURRENT_SHA}^" 2>/dev/null || true)"
+
+          if [[ -n "$PREVIOUS_TAG" ]]; then
+            RANGE="$PREVIOUS_TAG..$TAG_NAME"
+            COMPARE_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/${PREVIOUS_TAG}...${TAG_NAME}"
+          else
+            RANGE="$TAG_NAME"
+            COMPARE_URL=""
+          fi
+
+          {
+            echo "## ${VERSION} - ${RELEASE_DATE}"
+            echo
+            if [[ -n "$COMPARE_URL" ]]; then
+              echo "[Full changelog](${COMPARE_URL})"
+              echo
+            fi
+            echo "### Changes"
+            echo
+            git log "$RANGE" --no-merges --pretty=format:"- %s (%h)" | sed '/^- $/d'
+            echo
+          } > release-notes.md
+
+          if [[ ! -s release-notes.md ]] || ! grep -q "^- " release-notes.md; then
+            {
+              echo "## ${VERSION} - ${RELEASE_DATE}"
+              echo
+              echo "### Changes"
+              echo
+              echo "- Release ${VERSION}."
+            } > release-notes.md
+          fi
+
+          cp CHANGELOG.md CHANGELOG.previous.md 2>/dev/null || true
+
+          {
+            echo "# Changelog"
+            echo
+            echo "All notable changes to this extension are documented here."
+            echo
+            cat release-notes.md
+            echo
+            if [[ -f CHANGELOG.previous.md ]]; then
+              awk 'BEGIN { skip = 1 } /^## / { skip = 0 } !skip { print }' CHANGELOG.previous.md
+            fi
+          } > CHANGELOG.md
+
+          echo "notes_path=release-notes.md" >> "$GITHUB_OUTPUT"
+          echo "changelog_path=CHANGELOG.md" >> "$GITHUB_OUTPUT"
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build extension
+        run: pnpm build
+
+      - name: Package extension
+        run: pnpm package
+
+      - name: Rename release asset
+        id: package
+        shell: bash
+        run: |
+          ASSET_NAME="ryans-stock-checker-${{ steps.version.outputs.version }}-chrome-mv3.zip"
+          cp build/chrome-mv3-prod.zip "$ASSET_NAME"
+          echo "asset_name=$ASSET_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag_name }}
+          name: Ryans Stock Checker ${{ steps.version.outputs.version }}
+          body_path: ${{ steps.changelog.outputs.notes_path }}
+          files: |
+            ${{ steps.package.outputs.asset_name }}
+            ${{ steps.changelog.outputs.changelog_path }}
