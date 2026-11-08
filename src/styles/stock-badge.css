@@ -1,0 +1,106 @@
+/* Rendered inside each card's shadow root. */
+
+:host {
+  display: block;
+  /* Sit above the card's stretched product link so the buttons stay clickable. */
+  position: relative;
+  z-index: 2;
+}
+
+.rsc {
+  margin: 6px 8px;
+  padding: 6px 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f9fafb;
+  color: #111827;
+  font: 12px/1.4 system-ui, "Segoe UI", sans-serif;
+  text-align: left;
+}
+
+.rsc-muted {
+  color: #6b7280;
+}
+
+.rsc-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rsc-all {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px dashed #e5e7eb;
+}
+
+.rsc-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 1px 0;
+}
+
+.rsc-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #9ca3af;
+}
+
+.rsc-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rsc-status {
+  flex: none;
+  font-weight: 600;
+}
+
+.rsc-in .rsc-dot {
+  background: #16a34a;
+}
+
+.rsc-in .rsc-status {
+  color: #15803d;
+}
+
+.rsc-transfer .rsc-dot {
+  background: #f59e0b;
+}
+
+.rsc-transfer .rsc-status {
+  color: #b45309;
+}
+
+.rsc-unknown .rsc-status {
+  color: #6b7280;
+}
+
+.rsc-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #1d4ed8;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.rsc-summary {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  text-align: left;
+  color: #374151;
+  text-decoration: none;
+}
+
+.rsc-summary:hover {
+  text-decoration: underline;
+}

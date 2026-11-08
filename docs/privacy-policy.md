@@ -10,14 +10,19 @@ This extension is not affiliated with, endorsed by, or produced by Ryans Compute
 
 The extension stores only settings needed for its stock display:
 
-- default store location;
-- selected store details used to show the settings preview.
+- the selected Ryans area (zone) and the shops chosen in that area;
+- the list of Ryans areas and shops, as last read from Ryans;
+- stock results for products already checked, kept for 5 minutes so revisiting a page doesn't repeat requests.
 
 This data is stored in Chrome local storage on the user's device.
 
 ## Data Sent To Ryans
 
-TODO: list exactly what is sent to Ryans endpoints once the stock lookup is implemented (for example, product IDs from Ryans product and category pages).
+To show stock, the extension requests `https://www.ryans.com/zones-availabiliy/{zone}/{product code}` for each product card on Ryans category and search pages. These requests contain only the selected area's ID and the product code shown on the card.
+
+When choosing shops, the settings page also loads one Ryans search page and one product page to read the current list of areas.
+
+These requests go to Ryans the same way Ryans' own "Check Availability" button does, so Ryans receives them with the browser's normal headers and cookies.
 
 The extension does not send this data to the extension developer.
 
@@ -31,10 +36,8 @@ The extension does not include analytics, remote logging, advertising SDKs, or e
 
 The extension requests:
 
-- `storage`, to save the selected default Ryans store;
-- `https://www.ryans.com/*`, to render stock UI on Ryans product and category pages.
-
-TODO: add any additional Ryans API host permission here.
+- `storage`, to save the selected Ryans area and shops, and briefly cache stock results;
+- `https://www.ryans.com/*`, to show stock on Ryans category and search pages and to request stock and area data from Ryans.
 
 ## Third-Party Dependency
 
