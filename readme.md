@@ -7,13 +7,14 @@ Chrome extension that shows Ryans Computers (https://www.ryans.com) store stock 
 1. On install, the settings page opens. Pick your area (zone) and one or more Ryans shops in it. Clicking the extension icon opens the same page later.
 2. On Ryans category and search pages, each product card gets a stock block under the price: your shops' status ("In stock" or a transfer time like "In 2 Hours") and a summary for every shop in the area.
 
-Stock comes from Ryans' undocumented `GET /zones-availabiliy/{zoneId}/{sku}` endpoint (the same one the product page's "Check Availability" button uses). Cards load lazily as they scroll into view, at most 3 requests at a time, and results are cached for 5 minutes.
+Stock comes from Ryans' undocumented `GET /zones-availabiliy/{zoneId}/{sku}` endpoint (the same one the product page's "Check Availability" button uses). Cards load lazily as they scroll into view. The background worker makes the requests through one queue shared by all tabs (at most 3 at a time), drops a page's queued lookups when you leave it, and caches results for 5 minutes in `chrome.storage.session`.
+
+The content script is plain DOM (about 12 KB) and only rescans the page when Ryans adds or removes elements, so it costs nothing while a page sits idle.
 
 ## Tech stack
 
 - [Plasmo](https://www.plasmo.com/) (Chrome MV3)
-- React 18 + TypeScript
-- zustand for settings state
+- TypeScript; React 18 for the settings page
 
 ## Development
 

@@ -1,5 +1,3 @@
-import { create } from "zustand"
-
 import type { Catalog } from "./ryans"
 
 export type Settings = {
@@ -11,7 +9,7 @@ export type Settings = {
   updatedAt: number
 }
 
-const SETTINGS_KEY = "settings"
+export const SETTINGS_KEY = "settings"
 const CATALOG_KEY = "catalog"
 
 export async function loadSettings(): Promise<Settings | null> {
@@ -33,29 +31,4 @@ export async function loadCatalog(): Promise<StoredCatalog | null> {
 export function saveCatalog(catalog: Catalog) {
   const stored: StoredCatalog = { ...catalog, fetchedAt: Date.now() }
   return chrome.storage.local.set({ [CATALOG_KEY]: stored }).then(() => stored)
-}
-
-type SettingsState = {
-  hydrated: boolean
-  settings: Settings | null
-}
-
-export const useSettings = create<SettingsState>(() => ({ hydrated: false, settings: null }))
-
-let initialized = false
-
-// Loads settings once and keeps the store in sync when another page (e.g. options) changes them.
-export function initSettingsStore() {
-  if (initialized) return
-  initialized = true
-
-  loadSettings()
-    .then((settings) => useSettings.setState({ hydrated: true, settings }))
-    .catch(() => useSettings.setState({ hydrated: true, settings: null }))
-
-  chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === "local" && SETTINGS_KEY in changes) {
-      useSettings.setState({ hydrated: true, settings: changes[SETTINGS_KEY].newValue ?? null })
-    }
-  })
 }

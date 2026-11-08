@@ -11,10 +11,11 @@ This extension is not affiliated with, endorsed by, or produced by Ryans Compute
 The extension stores only settings needed for its stock display:
 
 - the selected Ryans area (zone) and the shops chosen in that area;
-- the list of Ryans areas and shops, as last read from Ryans;
-- stock results for products already checked, kept for 5 minutes so revisiting a page doesn't repeat requests.
+- the list of Ryans areas and shops, as last read from Ryans.
 
 This data is stored in Chrome local storage on the user's device.
+
+Stock results for products already checked are kept in Chrome's in-memory session storage for 5 minutes, so revisiting a page doesn't repeat requests. They are cleared when the browser closes.
 
 ## Data Sent To Ryans
 
@@ -36,7 +37,7 @@ The extension does not include analytics, remote logging, advertising SDKs, or e
 
 The extension requests:
 
-- `storage`, to save the selected Ryans area and shops, and briefly cache stock results;
+- `storage`, to save the selected Ryans area and shops, and briefly cache stock results in memory;
 - `https://www.ryans.com/*`, to show stock on Ryans category and search pages and to request stock and area data from Ryans.
 
 ## Third-Party Dependency
