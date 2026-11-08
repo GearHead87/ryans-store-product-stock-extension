@@ -29,8 +29,7 @@ type Badge = {
   state: LookupState
   visible: boolean
   expanded: boolean
-  // Bumped on every lookup so a late response can't overwrite a newer one.
-  lookupToken: number
+  cancelLookup?: () => void
 }
 
 let settings: Settings | null = null
@@ -146,19 +145,27 @@ function render(badge: Badge) {
   badge.container.replaceChildren(renderContent(badge))
 }
 
+// Frees the lookup's place in the shared queue; its response, if any, is ignored.
+function cancelLookup(badge: Badge) {
+  badge.cancelLookup?.()
+  badge.cancelLookup = undefined
+}
+
 function lookup(badge: Badge, force = false) {
   if (!settings) return
-  const token = ++badge.lookupToken
+  cancelLookup(badge)
   badge.state = { status: "loading" }
   render(badge)
 
-  requestAvailability(settings.zoneId, badge.sku, force)
+  const { promise, cancel } = requestAvailability(settings.zoneId, badge.sku, force)
+  badge.cancelLookup = cancel
+  promise
     .then(
       (result): LookupState => ({ status: "done", result }),
       (error): LookupState => ({ status: "error", message: String(error?.message ?? error) })
     )
     .then((next) => {
-      if (badge.lookupToken !== token || badges.get(badge.card) !== badge) return
+      badge.cancelLookup = undefined
       badge.state = next
       render(badge)
     })
@@ -205,8 +212,7 @@ function mount(card: Element) {
     container,
     state: { status: "waiting" },
     visible: false,
-    expanded: false,
-    lookupToken: 0
+    expanded: false
   }
   badges.set(card, badge)
   badgeByHost.set(host, badge)
@@ -215,6 +221,7 @@ function mount(card: Element) {
 }
 
 function unmount(badge: Badge) {
+  cancelLookup(badge)
   viewport.unobserve(badge.host)
   badge.host.remove()
   badges.delete(badge.card)
@@ -222,7 +229,8 @@ function unmount(badge: Badge) {
 
 function scan() {
   for (const badge of badges.values()) {
-    if (!badge.card.isConnected || !badge.card.contains(badge.host)) {
+    // Remount if the card is gone, our block was removed, or the card now shows another product.
+    if (!badge.card.isConnected || !badge.card.contains(badge.host) || readCardSku(badge.card) !== badge.sku) {
       unmount(badge)
     }
   }
@@ -233,7 +241,8 @@ function scan() {
   }
 }
 
-// Rescan shortly after the page adds or removes elements, ignoring our own blocks being inserted.
+// Rescan shortly after the page adds or removes elements (ignoring our own blocks being inserted),
+// or replaces text inside a card, which could be its SKU.
 let rescanTimer: ReturnType<typeof setTimeout> | undefined
 
 function isPageChange(mutations: MutationRecord[]) {
@@ -241,6 +250,9 @@ function isPageChange(mutations: MutationRecord[]) {
     for (const nodes of [mutation.addedNodes, mutation.removedNodes]) {
       for (const node of nodes) {
         if (node.nodeType === Node.ELEMENT_NODE && node.nodeName !== HOST_TAG.toUpperCase()) {
+          return true
+        }
+        if (node.nodeType === Node.TEXT_NODE && (mutation.target as Element).closest?.(CARD_SELECTOR)) {
           return true
         }
       }
@@ -262,12 +274,14 @@ function applySettings(next: Settings | null) {
   settings = next
   for (const badge of badges.values()) {
     if (zoneChanged) {
-      badge.lookupToken++
+      cancelLookup(badge)
       badge.state = { status: "waiting" }
       badge.expanded = false
-      if (badge.visible && settings) {
-        lookup(badge)
-        continue
+      // Re-observe instead of looking up now: only cards on screen refetch, and hidden tabs wait
+      // until they're shown (Chrome doesn't run intersection checks in background tabs).
+      if (badge.visible) {
+        badge.visible = false
+        viewport.observe(badge.host)
       }
     }
     render(badge)

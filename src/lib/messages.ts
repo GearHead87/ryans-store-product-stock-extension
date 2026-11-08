@@ -5,11 +5,20 @@ import type { Availability } from "./ryans"
 export const AVAILABILITY_PORT = "availability"
 
 export type AvailabilityRequest = {
+  type: "lookup"
   id: number
   zoneId: number
   sku: string
   force: boolean
 }
+
+// Sent when a card is removed or its lookup is superseded, so it stops holding a place in the queue.
+export type CancelRequest = {
+  type: "cancel"
+  id: number
+}
+
+export type PortRequest = AvailabilityRequest | CancelRequest
 
 export type AvailabilityResponse = { id: number; result: Availability } | { id: number; error: string }
 

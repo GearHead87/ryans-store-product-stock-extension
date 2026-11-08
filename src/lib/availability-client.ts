@@ -1,4 +1,4 @@
-import { AVAILABILITY_PORT, type AvailabilityRequest, type AvailabilityResponse } from "./messages"
+import { AVAILABILITY_PORT, type AvailabilityRequest, type AvailabilityResponse, type CancelRequest } from "./messages"
 import type { Availability } from "./ryans"
 
 type Pending = {
@@ -56,10 +56,22 @@ function send(request: AvailabilityRequest) {
   }
 }
 
+function cancel(id: number) {
+  if (!pending.delete(id) || !port) return
+  const message: CancelRequest = { type: "cancel", id }
+  try {
+    port.postMessage(message)
+  } catch {
+    // Disconnected; the background worker already dropped this page's lookups.
+  }
+}
+
+// A cancelled lookup's promise never settles.
 export function requestAvailability(zoneId: number, sku: string, force = false) {
-  return new Promise<Availability>((resolve, reject) => {
-    const request: AvailabilityRequest = { id: nextId++, zoneId, sku, force }
+  const request: AvailabilityRequest = { type: "lookup", id: nextId++, zoneId, sku, force }
+  const promise = new Promise<Availability>((resolve, reject) => {
     pending.set(request.id, { request, resolve, reject, retried: false })
     send(request)
   })
+  return { promise, cancel: () => cancel(request.id) }
 }

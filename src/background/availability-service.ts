@@ -1,4 +1,4 @@
-import type { AvailabilityRequest, AvailabilityResponse } from "../lib/messages"
+import type { AvailabilityRequest, AvailabilityResponse, PortRequest } from "../lib/messages"
 import { fetchAvailability, type Availability } from "../lib/ryans"
 
 const CACHE_PREFIX = "avail:"
@@ -18,6 +18,8 @@ type CacheEntry = {
 type Waiter = {
   port: chrome.runtime.Port
   id: number
+  // Set when the page cancels the lookup or disconnects while its cache read is pending.
+  cancelled?: boolean
 }
 
 type Job = {
@@ -33,6 +35,8 @@ const running = new Map<string, Job>()
 let lastStart = 0
 let timer: ReturnType<typeof setTimeout> | undefined
 let lastPrune = 0
+// Lookups waiting on a cache read, before they join or create a job.
+const readingCache = new Set<Waiter>()
 
 // storage.session lives in memory, survives the worker being suspended, and isn't visible to content
 // scripts, so cache writes don't fire storage events in every Ryans tab.
@@ -108,7 +112,9 @@ async function enqueue(port: chrome.runtime.Port, { id, zoneId, sku, force }: Av
   const findJob = () => running.get(key) ?? queued.get(key)
 
   if (!findJob() && !force) {
-    const cached = await readCache(key)
+    readingCache.add(waiter)
+    const cached = await readCache(key).finally(() => readingCache.delete(waiter))
+    if (waiter.cancelled) return
     if (cached) {
       reply(waiter, { id, result: cached })
       return
@@ -125,10 +131,13 @@ async function enqueue(port: chrome.runtime.Port, { id, zoneId, sku, force }: Av
   pump()
 }
 
-// Drop a closed page's waiters, and its queued lookups that nobody else is waiting for.
-function dropPort(port: chrome.runtime.Port) {
+// Remove matching waiters, and drop queued lookups that nobody is waiting for anymore.
+function dropWaiters(matches: (waiter: Waiter) => boolean) {
+  for (const waiter of readingCache) {
+    if (matches(waiter)) waiter.cancelled = true
+  }
   for (const job of [...queued.values(), ...running.values()]) {
-    job.waiters = job.waiters.filter((waiter) => waiter.port !== port)
+    job.waiters = job.waiters.filter((waiter) => !matches(waiter))
     if (job.waiters.length === 0) {
       queued.delete(job.key)
     }
@@ -136,10 +145,14 @@ function dropPort(port: chrome.runtime.Port) {
 }
 
 export function handleAvailabilityPort(port: chrome.runtime.Port) {
-  port.onMessage.addListener((request: AvailabilityRequest) => {
+  port.onMessage.addListener((request: PortRequest) => {
+    if (request.type === "cancel") {
+      dropWaiters((waiter) => waiter.port === port && waiter.id === request.id)
+      return
+    }
     enqueue(port, request).catch((error) => reply({ port, id: request.id }, { id: request.id, error: String(error) }))
   })
-  port.onDisconnect.addListener(() => dropPort(port))
+  port.onDisconnect.addListener(() => dropWaiters((waiter) => waiter.port === port))
 }
 
 // Earlier versions cached results in storage.local; remove them.
